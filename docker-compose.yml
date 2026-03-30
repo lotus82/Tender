@@ -1,0 +1,83 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: tender
+      POSTGRES_PASSWORD: tender
+      POSTGRES_DB: tender
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./backups:/backups
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB -h 127.0.0.1 && psql -U $$POSTGRES_USER -d $$POSTGRES_DB -h 127.0.0.1 -c 'SELECT 1' -q > /dev/null",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-m", "presentation.telegram.main"]
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-change_me}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://tender:tender@postgres:5432/tender}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-change_me}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command:
+      [
+        "celery",
+        "-A",
+        "worker.celery_app",
+        "worker",
+        "--loglevel=info",
+      ]
+    environment:
+      TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-change_me}
+      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://tender:tender@postgres:5432/tender}
+      REDIS_URL: ${REDIS_URL:-redis://redis:6379/0}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-change_me}
+      PROMPTS_DIR: ${PROMPTS_DIR:-/app/prompts}
+      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-}
+      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-}
+    volumes:
+      - ./prompts:/app/prompts
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

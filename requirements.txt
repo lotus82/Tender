@@ -1,0 +1,21 @@
+# Ядро приложения и интеграции
+aiogram>=3.13,<4
+celery[redis]>=5.4,<6
+redis>=5.0,<6
+sqlalchemy[asyncio]>=2.0,<3
+asyncpg>=0.29,<1
+alembic>=1.13,<2
+pydantic>=2.0,<3
+pydantic-settings>=2.0,<3
+
+# Парсинг документов и данные
+pdfplumber>=0.11,<1
+pytesseract>=0.3.10,<1
+python-docx>=1.1,<2
+pandas>=2.0,<3
+openpyxl>=3.1,<4
+tabulate>=0.9,<1
+Pillow>=10.0,<12
+
+# LLM (Google Gemini)
+google-genai>=1.0,<2

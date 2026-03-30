@@ -1,0 +1,346 @@
+{
+  "meta": {
+    "instanceId": "workflow-ai-tender-agent-python-lock"
+  },
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ],
+        "additionalFields": {}
+      },
+      "id": "node-trigger",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        200,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $input.first().json.message;\nconst fileId = msg.document?.file_id || (msg.photo?.length ? msg.photo[msg.photo.length - 1].file_id : null);\n\nreturn [{\n  json: {\n    chat_id: msg.chat.id,\n    media_group_id: msg.media_group_id || null,\n    file_id: fileId,\n    caption: msg.caption || msg.text || \"\"\n  }\n}];"
+      },
+      "id": "node-prepare",
+      "name": "Prepare Payload",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        420,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fastapi-microservice:8000/upload",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"chat_id\": {{ $json.chat_id }},\n  \"media_group_id\": \"{{ $json.media_group_id }}\",\n  \"file_id\": \"{{ $json.file_id }}\",\n  \"caption\": \"{{ $json.caption }}\"\n}",
+        "options": {}
+      },
+      "id": "node-api-upload",
+      "name": "API: Upload & Lock",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        640,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "strict"
+                },
+                "conditions": [
+                  {
+                    "id": "is-first",
+                    "leftValue": "={{ $json.is_first }}",
+                    "rightValue": true,
+                    "operator": {
+                      "type": "boolean",
+                      "operation": "true"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "Process Flow"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "node-switch-first",
+      "name": "Is First File?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        860,
+        360
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Prepare Payload').first().json.chat_id }}",
+        "text": "Ваши документы получены и обрабатываются. Ожидайте результата.",
+        "additionalFields": {}
+      },
+      "id": "node-send-msg",
+      "name": "Send Processing Msg",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1100,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 8,
+        "unit": "seconds"
+      },
+      "id": "node-wait",
+      "name": "Wait 8s",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1320,
+        280
+      ],
+      "webhookId": "wait-node-webhook-final"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://fastapi-microservice:8000/extract",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"group_id\": \"{{ $('API: Upload & Lock').first().json.group_id }}\"\n}",
+        "options": {
+          "timeout": 300000
+        }
+      },
+      "id": "node-api-extract",
+      "name": "API: Extract Text",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1520,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "check-success",
+              "leftValue": "={{ $json.status }}",
+              "rightValue": "success",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "node-check-errors",
+      "name": "Check Extraction Status",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1740,
+        280
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Prepare Payload').first().json.chat_id }}",
+        "text": "Ошибка: Не удалось извлечь данные или превышен таймаут.",
+        "additionalFields": {}
+      },
+      "id": "node-send-err",
+      "name": "Send Error",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1980,
+        420
+      ]
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "value": "models/gemini-1.5-pro",
+          "mode": "list",
+          "cachedResultName": "models/gemini-1.5-pro"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Ты — эксперт по тендерной документации.\nЗапрос: {{ $json.query }}\n\nДокументы:\n{{ $json.extracted_markdown }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.1,
+      "position": [
+        1980,
+        140
+      ],
+      "id": "node-gemini",
+      "name": "LLM Analysis"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('API: Extract Text').first().json.chat_id }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML"
+        }
+      },
+      "id": "node-final-send",
+      "name": "Send Final",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2240,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "Prepare Payload",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Payload": {
+      "main": [
+        [
+          {
+            "node": "API: Upload & Lock",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: Upload & Lock": {
+      "main": [
+        [
+          {
+            "node": "Is First File?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Is First File?": {
+      "main": [
+        [
+          {
+            "node": "Send Processing Msg",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send Processing Msg": {
+      "main": [
+        [
+          {
+            "node": "Wait 8s",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait 8s": {
+      "main": [
+        [
+          {
+            "node": "API: Extract Text",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "API: Extract Text": {
+      "main": [
+        [
+          {
+            "node": "Check Extraction Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Extraction Status": {
+      "main": [
+        [
+          {
+            "node": "LLM Analysis",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "LLM Analysis": {
+      "main": [
+        [
+          {
+            "node": "Send Final",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}
