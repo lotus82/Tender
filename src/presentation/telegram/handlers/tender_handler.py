@@ -65,14 +65,14 @@ async def handle_tender_submission(
     )
 
     await message.answer(
-        "Ваши документы получены и обрабатываются. Пожалуйста, дождитесь результата.",
+        "Ваши документы получены и обрабатываются.\nЭто может занять от нескольких секунд до 3 мин.\nПожалуйста, дождитесь результата...⌛ ",
     )
 
-    file_ids = [doc.file_id for doc in documents]
+    file_entries = [[doc.file_id, doc.file_name] for doc in documents]
     process_tender_task.delay(
         message.from_user.id,
         user_query_text,
-        file_ids,
+        file_entries,
         username=message.from_user.username,
         display_name=message.from_user.full_name,
     )

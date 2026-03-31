@@ -8,7 +8,7 @@ import logging
 from aiogram import Bot
 from aiogram.exceptions import TelegramAPIError
 
-from application.ports.file_provider import IFileProviderPort
+from application.ports.file_provider import DownloadedFile, IFileProviderPort
 from domain.exceptions import FileDownloadError
 
 logger = logging.getLogger(__name__)
@@ -20,9 +20,15 @@ class TelegramFileProviderAdapter(IFileProviderPort):
     def __init__(self, bot: Bot) -> None:
         self._bot = bot
 
-    async def download_file(self, file_id: str) -> bytes:
-        """Получить байты файла по ``file_id``."""
+    async def download_file(
+        self,
+        file_id: str,
+        *,
+        original_filename: str | None = None,
+    ) -> DownloadedFile:
+        """Получить байты файла по ``file_id`` и осмысленное имя файла."""
         try:
+            tg_file = await self._bot.get_file(file_id)
             buf = io.BytesIO()
             await self._bot.download(file=file_id, destination=buf, timeout=120)
             buf.seek(0)
@@ -36,4 +42,13 @@ class TelegramFileProviderAdapter(IFileProviderPort):
 
         if not data:
             raise FileDownloadError("Получен пустой файл.")
-        return data
+
+        path_name = "file.bin"
+        if tg_file.file_path:
+            path_name = tg_file.file_path.split("/")[-1] or path_name
+
+        name = (original_filename or "").strip()
+        if not name:
+            name = path_name
+
+        return DownloadedFile(content=data, filename=name)

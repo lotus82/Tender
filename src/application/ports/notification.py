@@ -14,3 +14,12 @@ class INotificationPort(ABC):
         :param user_id: Идентификатор пользователя в канале (например, chat_id в Telegram).
         :param text: Текст сообщения.
         """
+
+    @abstractmethod
+    async def send_documents(self, user_id: int, files: list[tuple[str, bytes]]) -> None:
+        """
+        Отправить пользователю набор файлов из памяти.
+
+        :param user_id: Числовой идентификатор пользователя в канале.
+        :param files: Список пар ``(имя файла, байты содержимого)``.
+        """

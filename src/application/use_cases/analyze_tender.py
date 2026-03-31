@@ -1,22 +1,30 @@
 """
 Сценарий анализа тендерной документации: только порты, без Telegram/Celery.
 
-Оркестрация: сохранение заявки → загрузка файлов → парсинг → LLM → обновление статуса → уведомление.
+Оркестрация: сохранение заявки → загрузка файлов → парсинг → LLM → артефакты → уведомление.
 """
 
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 
 from application.ports.file_provider import IFileProviderPort
 from application.ports.llm import ILLMPort
 from application.ports.notification import INotificationPort
 from application.ports.repository import ITenderRequestRepository
 from application.services.parsers import parse_bytes_to_markdown
+from application.services.pdf_generator import markdown_response_to_pdf
 from domain.entities import TenderRequest, TenderRequestStatus, TenderUserInfo
 from domain.exceptions import DocumentParsingError, FileDownloadError, LLMAnalysisError
 
 logger = logging.getLogger(__name__)
+
+
+def _parsed_txt_filename(original_filename: str) -> str:
+    """Имя артефакта: ``parsed_<оригинал>.txt`` (только базовое имя, без путей)."""
+    base = Path(original_filename).name.strip() or "document"
+    return f"parsed_{base}.txt"
 
 
 class AnalyzeTenderUseCase:
@@ -38,13 +46,15 @@ class AnalyzeTenderUseCase:
         self,
         user_id: int,
         query: str,
-        file_ids: list[str],
+        file_entries: list[tuple[str, str]],
         *,
         username: str | None = None,
         display_name: str | None = None,
     ) -> None:
         """
         Выполнить анализ: зафиксировать заявку в БД (PROCESSING), обработать файлы, обновить статус.
+
+        ``file_entries`` — пары ``(file_id, original_filename)`` из канала доставки.
 
         При ошибках статус ``FAILED`` и ``result_text`` с причиной; пользователю уходит локализованное сообщение.
         """
@@ -71,10 +81,16 @@ class AnalyzeTenderUseCase:
             return
 
         combined_parts: list[str] = []
+        txt_artifacts: list[tuple[str, bytes]] = []
 
         try:
-            for idx, fid in enumerate(file_ids, start=1):
-                raw = await self._files.download_file(fid)
+            for idx, (fid, orig_name) in enumerate(file_entries, start=1):
+                downloaded = await self._files.download_file(
+                    fid,
+                    original_filename=orig_name,
+                )
+                raw = downloaded.content
+                display_name = downloaded.filename
                 try:
                     md = parse_bytes_to_markdown(raw)
                 except DocumentParsingError as exc:
@@ -90,7 +106,11 @@ class AnalyzeTenderUseCase:
                         f"Проверьте формат (PDF, DOCX, XLSX или изображение). Подробности: {exc}",
                     )
                     return
-                combined_parts.append(f"### Вложение {idx} (id: `{fid}`)\n\n{md}")
+                combined_parts.append(
+                    f"### Вложение {idx} ({display_name}, id: `{fid}`)\n\n{md}",
+                )
+                txt_name = _parsed_txt_filename(display_name)
+                txt_artifacts.append((txt_name, md.encode("utf-8")))
 
             documents_markdown = "\n\n".join(combined_parts)
             answer = await self._llm.analyze(query, documents_markdown)
@@ -100,6 +120,16 @@ class AnalyzeTenderUseCase:
                 result_text=answer,
             )
             await self._notify.send_message(uid, answer)
+
+            files_to_send: list[tuple[str, bytes]] = list(txt_artifacts)
+            try:
+                pdf_buf = markdown_response_to_pdf(answer)
+                files_to_send.append(("Результаты анализа.pdf", pdf_buf.getvalue()))
+            except Exception as exc:
+                logger.warning("PDF результата анализа не сформирован: %s", exc)
+
+            if files_to_send:
+                await self._notify.send_documents(user_id, files_to_send)
 
         except FileDownloadError as exc:
             logger.warning("Загрузка файла: %s", exc)

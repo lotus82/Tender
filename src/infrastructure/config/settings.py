@@ -49,6 +49,12 @@ class Settings(BaseSettings):
         ge=1_000,
         description="Таймаут HTTP-запроса к Gemini API в миллисекундах",
     )
+    gemini_max_output_tokens: int = Field(
+        default=16_384,
+        ge=512,
+        le=65_536,
+        description="Лимит токенов ответа Gemini; малые значения обрезают длинный разбор",
+    )
 
     celery_broker_url: str | None = Field(
         default=None,

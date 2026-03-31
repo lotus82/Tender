@@ -28,6 +28,7 @@ class GeminiAdapter(ILLMPort):
         self._prompt_manager = prompt_manager
         self._model = settings.gemini_model
         self._timeout_ms = settings.gemini_timeout_ms
+        self._max_output_tokens = settings.gemini_max_output_tokens
         self._timeout_sec = max(self._timeout_ms / 1000.0, 1.0)
         self._client = genai.Client(
             api_key=api_key,
@@ -50,7 +51,7 @@ class GeminiAdapter(ILLMPort):
         config = types.GenerateContentConfig(
             system_instruction=system_instruction,
             temperature=0.2,
-            max_output_tokens=4096,
+            max_output_tokens=self._max_output_tokens,
         )
 
         async def _call_model() -> types.GenerateContentResponse:
@@ -72,9 +73,31 @@ class GeminiAdapter(ILLMPort):
             raise LLMAnalysisError(f"Сбой API Gemini: {exc}") from exc
 
         text = self._extract_text(response)
+        self._log_finish_reason(response)
         if not text.strip():
             raise LLMAnalysisError("Модель вернула пустой ответ.")
         return text
+
+    @staticmethod
+    def _log_finish_reason(response: object) -> None:
+        """Предупреждение в лог, если ответ обрезан по лимиту токенов."""
+        try:
+            candidates = getattr(response, "candidates", None) or []
+            if not candidates:
+                return
+            c0 = candidates[0]
+            fr = getattr(c0, "finish_reason", None)
+            if fr is None:
+                return
+            fr_name = getattr(fr, "name", None) or str(fr)
+            if "MAX_TOKENS" in fr_name.upper():
+                logger.warning(
+                    "Ответ Gemini обрезан по max_output_tokens (finish_reason=%s). "
+                    "Увеличьте GEMINI_MAX_OUTPUT_TOKENS при необходимости.",
+                    fr_name,
+                )
+        except Exception:
+            pass
 
     @staticmethod
     def _extract_text(response: types.GenerateContentResponse) -> str:
