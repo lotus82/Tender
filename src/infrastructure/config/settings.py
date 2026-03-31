@@ -62,6 +62,26 @@ class Settings(BaseSettings):
             "Пусто — запросы идут на стандартные endpoint’ы Google."
         ),
     )
+    welcome_message: str = Field(
+        default=(
+            "Добро пожаловать! Отправьте мне текстовый запрос и прикрепите документы "
+            "(до 10 файлов: PDF, DOCX, XLSX, JPG) в одном сообщении. "
+            "Я проанализирую их на соответствие 44-ФЗ и 223-ФЗ."
+        ),
+        description="Текст ответа бота на команду /start",
+    )
+    llm_temperature: float = Field(
+        default=0.2,
+        ge=0.0,
+        le=2.0,
+        description="Температура генерации Gemini (REST generationConfig.temperature)",
+    )
+    processing_timeout_seconds: int = Field(
+        default=180,
+        ge=30,
+        le=3_600,
+        description="Мягкий лимит Celery (сек.): после него задача прерывается и пользователю уходит сообщение о таймауте",
+    )
 
     celery_broker_url: str | None = Field(
         default=None,

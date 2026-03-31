@@ -8,6 +8,7 @@ import asyncio
 import logging
 
 from aiogram import Bot
+from celery.exceptions import SoftTimeLimitExceeded
 from celery.utils.log import get_task_logger
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
@@ -23,6 +24,17 @@ from worker.celery_app import app
 
 logger = get_task_logger(__name__)
 
+_CELERY_TIMEOUT_USER_MESSAGE = (
+    "⏳ Ошибка: Превышено время ожидания ответа от ИИ (таймаут). "
+    "Пожалуйста, попробуйте отправить запрос позже или уменьшите объем документов."
+)
+_CELERY_GENERIC_USER_MESSAGE = (
+    "❌ Произошла внутренняя ошибка при обработке вашего запроса. "
+    "Пожалуйста, обратитесь к администратору."
+)
+
+_task_settings = get_settings()
+
 
 def _normalize_file_entries(file_entries: list[list[str]]) -> list[tuple[str, str]]:
     """Celery JSON даёт списки пар ``[file_id, file_name]``."""
@@ -32,6 +44,34 @@ def _normalize_file_entries(file_entries: list[list[str]]) -> list[tuple[str, st
             continue
         out.append((str(row[0]), str(row[1])))
     return out
+
+
+async def _notify_processing_abort(
+    user_id: int,
+    *,
+    user_facing_text: str,
+    result_text: str,
+) -> None:
+    """
+    После аварийного выхода из задачи: сбросить engine (новый event loop), FAILED в БД, сообщение в Telegram.
+    """
+    await dispose_async_engine()
+    settings = get_settings()
+    factory: async_sessionmaker[AsyncSession] = get_async_session_maker()
+    try:
+        async with factory() as session:
+            try:
+                repo = PostgresTenderRequestRepository(session)
+                await repo.fail_latest_processing_for_user(user_id, result_text)
+                async with Bot(token=settings.telegram_bot_token) as bot:
+                    notifier = TelegramNotificationAdapter(bot)
+                    await notifier.send_message(str(user_id), user_facing_text)
+                await session.commit()
+            except Exception:
+                await session.rollback()
+                raise
+    finally:
+        await dispose_async_engine()
 
 
 async def _run_analyze(
@@ -75,7 +115,12 @@ async def _run_analyze(
         await dispose_async_engine()
 
 
-@app.task(name="tender.process_tender", bind=False)
+@app.task(
+    name="tender.process_tender",
+    bind=False,
+    soft_time_limit=_task_settings.processing_timeout_seconds,
+    time_limit=_task_settings.processing_timeout_seconds + 15,
+)
 def process_tender_task(
     user_id: int,
     query: str,
@@ -101,6 +146,23 @@ def process_tender_task(
                 display_name=display_name,
             ),
         )
+    except SoftTimeLimitExceeded:
+        logger.warning("process_tender_task: превышен soft_time_limit user_id=%s", user_id)
+        asyncio.run(
+            _notify_processing_abort(
+                user_id,
+                user_facing_text=_CELERY_TIMEOUT_USER_MESSAGE,
+                result_text="Прервано по таймауту обработки (Celery soft_time_limit).",
+            ),
+        )
+        raise
     except Exception:
         logger.exception("Ошибка в process_tender_task")
+        asyncio.run(
+            _notify_processing_abort(
+                user_id,
+                user_facing_text=_CELERY_GENERIC_USER_MESSAGE,
+                result_text="Внутренняя ошибка воркера (process_tender_task).",
+            ),
+        )
         raise

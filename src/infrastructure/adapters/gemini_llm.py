@@ -34,6 +34,7 @@ class GeminiAdapter(ILLMPort):
         self._prompt_manager = prompt_manager
         self._model = settings.gemini_model
         self._max_output_tokens = settings.gemini_max_output_tokens
+        self._llm_temperature = settings.llm_temperature
         self._timeout_sec = max(settings.gemini_timeout_ms / 1000.0, 1.0)
         self._api_key = api_key
         self.base_url = (base_url or "https://generativelanguage.googleapis.com").rstrip("/")
@@ -61,7 +62,7 @@ class GeminiAdapter(ILLMPort):
                 },
             ],
             "generationConfig": {
-                "temperature": 0.2,
+                "temperature": self._llm_temperature,
                 "maxOutputTokens": self._max_output_tokens,
             },
         }

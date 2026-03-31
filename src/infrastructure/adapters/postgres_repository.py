@@ -142,3 +142,27 @@ class PostgresTenderRequestRepository(ITenderRequestRepository):
         stmt = update(RequestLog).where(RequestLog.id == rid).values(**values)
         await self._session.execute(stmt)
         await self._session.flush()
+
+    async def fail_latest_processing_for_user(
+        self,
+        telegram_user_id: int,
+        result_text: str,
+    ) -> bool:
+        """См. порт ``ITenderRequestRepository``."""
+        stmt = (
+            select(RequestLog)
+            .join(User, RequestLog.user_id == User.id)
+            .where(
+                User.telegram_user_id == telegram_user_id,
+                RequestLog.status == TenderRequestStatus.PROCESSING.value,
+            )
+            .order_by(RequestLog.id.desc())
+            .limit(1)
+        )
+        row = await self._session.scalar(stmt)
+        if row is None:
+            return False
+        row.status = TenderRequestStatus.FAILED.value
+        row.result_text = result_text
+        await self._session.flush()
+        return True

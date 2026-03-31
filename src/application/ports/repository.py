@@ -34,3 +34,16 @@ class ITenderRequestRepository(ABC):
 
         :param status: Строковое значение статуса (обычно ``TenderRequestStatus.value``).
         """
+
+    @abstractmethod
+    async def fail_latest_processing_for_user(
+        self,
+        telegram_user_id: int,
+        result_text: str,
+    ) -> bool:
+        """
+        Пометить последнюю заявку пользователя в статусе PROCESSING как FAILED.
+
+        Нужна при прерывании Celery по soft time limit, когда id заявки недоступен снаружи сценария.
+        Возвращает True, если такая строка найдена и обновлена.
+        """

@@ -9,15 +9,23 @@ from __future__ import annotations
 
 import logging
 from aiogram import Router
-from aiogram.filters import BaseFilter
+from aiogram.filters import BaseFilter, CommandStart
 from aiogram.types import Message
 
 from domain.entities import TenderDocument, TenderRequest, TenderRequestStatus, TenderUserInfo
+from infrastructure.config import get_settings
 from worker.tasks import process_tender_task
 
 logger = logging.getLogger(__name__)
 
 router = Router(name="tender")
+
+
+@router.message(CommandStart())
+async def cmd_start(message: Message) -> None:
+    """Приветствие по команде /start (текст из настроек окружения)."""
+    settings = get_settings()
+    await message.answer(settings.welcome_message)
 
 
 class HasTenderAttachmentFilter(BaseFilter):

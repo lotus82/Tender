@@ -192,7 +192,7 @@ celery -A worker.celery_app worker --loglevel=info
 
 ## Переменные окружения
 
-См. `.env.example`. Класс настроек: `src/infrastructure/config/settings.py` (`Settings` / `get_settings()`). Дополнительно: **`GEMINI_MODEL`** (по умолчанию `gemini-2.5-flash`; для сложных отчётов можно `gemini-2.5-pro`), **`GEMINI_TIMEOUT_MS`** (миллисекунды HTTP к Gemini), **`GEMINI_BASE_URL`** (опционально — прокси для обхода гео‑блокировки; см. раздел развёртывания). Загрузка файлов: сначала `.env.example`, затем `.env`.
+См. `.env.example`. Класс настроек: `src/infrastructure/config/settings.py` (`Settings` / `get_settings()`). Дополнительно: **`WELCOME_MESSAGE`** (текст `/start`), **`LLM_TEMPERATURE`**, **`PROCESSING_TIMEOUT_SECONDS`** (мягкий лимит Celery на задачу `process_tender`; жёсткий лимит = +15 с), **`GEMINI_MODEL`** (по умолчанию `gemini-2.5-flash`; для сложных отчётов можно `gemini-2.5-pro`), **`GEMINI_TIMEOUT_MS`** (миллисекунды HTTP к Gemini), **`GEMINI_BASE_URL`** (опционально — прокси для обхода гео‑блокировки; см. раздел развёртывания). Загрузка файлов: сначала `.env.example`, затем `.env`.
 
 ## Текущее состояние (этап 5)
 
