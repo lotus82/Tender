@@ -17,8 +17,8 @@ openpyxl>=3.1,<4
 tabulate>=0.9,<1
 Pillow>=10.0,<12
 
-# LLM (Google Gemini)
-google-genai>=1.0,<2
+# LLM (Google Gemini REST)
+aiohttp>=3.9,<4
 
 # Артефакты: Markdown → PDF (ReportLab + встроенный DejaVu TTF), кириллица — fonts-dejavu-core в образе
 markdown>=3.5,<4

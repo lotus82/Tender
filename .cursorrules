@@ -8,7 +8,7 @@ You are an expert Senior Python Backend Developer, Software Architect, and AI In
 - **Message Broker / Cache:** Redis
 - **Database:** PostgreSQL (via SQLAlchemy and asyncpg)
 - **Parsers:** `pdfplumber`, `pytesseract`, `python-docx`, `pandas`
-- **LLM Integration:** `google-genai` (for Gemini 1.5/2.0 Pro)
+- **LLM Integration:** Gemini REST (`aiohttp`, `v1beta` `generateContent`)
 - **Infrastructure:** Docker, Docker Compose
 - **Architecture:** Clean Architecture, Hexagonal Architecture (Ports and Adapters), Domain-Driven Design (DDD)
 - **Paradigm:** Strict OOP, SOLID principles

@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     )
     gemini_api_key: str = Field(
         ...,
-        description="API-ключ Google Gemini (google-genai)",
+        description="API-ключ Google Gemini (REST generateContent)",
     )
     gemini_model: str = Field(
         default="gemini-2.5-flash",
