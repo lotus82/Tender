@@ -56,6 +56,7 @@ async def _run_analyze(
                     llm = GeminiAdapter(
                         api_key=settings.gemini_api_key,
                         prompt_manager=prompt_manager,
+                        base_url=settings.gemini_base_url,
                     )
                     notifier = TelegramNotificationAdapter(bot)
                     use_case = AnalyzeTenderUseCase(file_provider, llm, notifier, repo)

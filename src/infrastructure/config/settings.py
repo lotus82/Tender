@@ -3,7 +3,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -55,6 +55,13 @@ class Settings(BaseSettings):
         le=65_536,
         description="Лимит токенов ответа Gemini; малые значения обрезают длинный разбор",
     )
+    gemini_base_url: str | None = Field(
+        default=None,
+        description=(
+            "Необязательный базовый URL Gemini API (HTTP-прокси, например Cloudflare Worker). "
+            "Пусто — запросы идут на стандартные endpoint’ы Google."
+        ),
+    )
 
     celery_broker_url: str | None = Field(
         default=None,
@@ -64,6 +71,16 @@ class Settings(BaseSettings):
         default=None,
         description="Бэкенд результатов Celery; по умолчанию redis_url",
     )
+
+    @field_validator("gemini_base_url", mode="before")
+    @classmethod
+    def _empty_gemini_base_url_none(cls, v: object) -> str | None:
+        if v is None:
+            return None
+        if isinstance(v, str):
+            s = v.strip()
+            return s or None
+        return None
 
     @property
     def celery_broker(self) -> str:

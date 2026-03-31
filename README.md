@@ -112,7 +112,7 @@ Telegram не присылает «одно сообщение с десятью
 ## Развёртывание (VPS, прод, новый хост)
 
 1. Установите **Docker** и **Docker Compose v2**, склонируйте репозиторий.
-2. Создайте `.env` с реальными **`TELEGRAM_BOT_TOKEN`**, **`GEMINI_API_KEY`** и при необходимости скорректируйте **`DATABASE_URL`** / пароли PostgreSQL в `docker-compose.yml`.
+2. Создайте `.env` с реальными **`TELEGRAM_BOT_TOKEN`**, **`GEMINI_API_KEY`** и при необходимости скорректируйте **`DATABASE_URL`** / пароли PostgreSQL в `docker-compose.yml`. Если хост находится в регионе, где официальный Gemini API недоступен (в т.ч. ответы вида **400 FAILED_PRECONDITION**), задайте **`GEMINI_BASE_URL`** — базовый URL вашего HTTP‑прокси (например Cloudflare Worker), совместимого с Gemini; SDK подставит его через **`HttpOptions.base_url`**. Без переменной или при пустом значении используются стандартные endpoint’ы Google.
 3. Из корня проекта выполните **`make up`** или:
 
    ```bash
@@ -192,7 +192,7 @@ celery -A worker.celery_app worker --loglevel=info
 
 ## Переменные окружения
 
-См. `.env.example`. Класс настроек: `src/infrastructure/config/settings.py` (`Settings` / `get_settings()`). Дополнительно: **`GEMINI_MODEL`** (по умолчанию `gemini-2.5-flash`; для сложных отчётов можно `gemini-2.5-pro`), **`GEMINI_TIMEOUT_MS`** (миллисекунды HTTP к Gemini). Загрузка файлов: сначала `.env.example`, затем `.env`.
+См. `.env.example`. Класс настроек: `src/infrastructure/config/settings.py` (`Settings` / `get_settings()`). Дополнительно: **`GEMINI_MODEL`** (по умолчанию `gemini-2.5-flash`; для сложных отчётов можно `gemini-2.5-pro`), **`GEMINI_TIMEOUT_MS`** (миллисекунды HTTP к Gemini), **`GEMINI_BASE_URL`** (опционально — прокси для обхода гео‑блокировки; см. раздел развёртывания). Загрузка файлов: сначала `.env.example`, затем `.env`.
 
 ## Текущее состояние (этап 5)
 

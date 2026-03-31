@@ -23,16 +23,24 @@ class GeminiAdapter(ILLMPort):
     Тексты промптов читаются с диска при каждом запросе через менеджер (горячая подмена файлов).
     """
 
-    def __init__(self, api_key: str, prompt_manager: PromptManager) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        prompt_manager: PromptManager,
+        base_url: str | None = None,
+    ) -> None:
         settings = get_settings()
         self._prompt_manager = prompt_manager
         self._model = settings.gemini_model
         self._timeout_ms = settings.gemini_timeout_ms
         self._max_output_tokens = settings.gemini_max_output_tokens
         self._timeout_sec = max(self._timeout_ms / 1000.0, 1.0)
+        http_kw: dict[str, object] = {"timeout": self._timeout_ms}
+        if base_url is not None and str(base_url).strip():
+            http_kw["base_url"] = str(base_url).strip().rstrip("/")
         self._client = genai.Client(
             api_key=api_key,
-            http_options=types.HttpOptions(timeout=self._timeout_ms),
+            http_options=types.HttpOptions(**http_kw),
         )
 
     async def analyze(self, query: str, documents_text: str) -> str:
