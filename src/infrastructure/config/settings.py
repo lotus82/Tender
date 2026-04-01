@@ -38,7 +38,7 @@ class Settings(BaseSettings):
         description="API-ключ Google Gemini (REST generateContent)",
     )
     gemini_model: str = Field(
-        default="gemini-2.5-flash",
+        default="gemini-3.1-flash-lite-preview",
         description=(
             "Идентификатор модели Gemini для generateContent (стабильные: gemini-2.5-flash, "
             "gemini-2.5-pro; старые имена вроде gemini-1.5-pro в API могут отдавать 404)"
